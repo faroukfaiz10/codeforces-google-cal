@@ -14,8 +14,6 @@ import requests
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
-# France timezone
-FRANCE_TIMEZONE = timezone(timedelta(hours=1))
 RUSSIA_TIMEZONE = timezone(timedelta(hours=3))
 
 
@@ -43,7 +41,7 @@ def create_event(
     service, calendar_id, contest_name, start_datetime, contest_length, verbose
 ):
     start_dt = datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").replace(tzinfo=RUSSIA_TIMEZONE)
-    hours, minutes = list(map(int, contest_length.split(":")))
+    hours, minutes = map(int, contest_length.split(":"))
     duration = timedelta(hours=hours, minutes=minutes)
     end_dt = start_dt + duration
     event = {
