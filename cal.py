@@ -1,6 +1,4 @@
-from __future__ import print_function
-
-import datetime
+from datetime import datetime, timedelta, timezone
 import os.path
 import sys, getopt
 
@@ -16,7 +14,9 @@ import requests
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
-TIMEZONE = datetime.timezone(datetime.timedelta(hours=1))
+# France timezone
+FRANCE_TIMEZONE = timezone(timedelta(hours=1))
+RUSSIA_TIMEZONE = timezone(timedelta(hours=3))
 
 
 def handle_auth():
@@ -39,12 +39,12 @@ def handle_auth():
     return creds
 
 
-def create_event(service, calendar_id, contest_name, start_datetime, contest_length, verbose):
-    start_dt = datetime.datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").astimezone(
-        TIMEZONE
-    )
+def create_event(
+    service, calendar_id, contest_name, start_datetime, contest_length, verbose
+):
+    start_dt = datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").replace(tzinfo=RUSSIA_TIMEZONE)
     hours, minutes = list(map(int, contest_length.split(":")))
-    duration = datetime.timedelta(hours=hours, minutes=minutes)
+    duration = timedelta(hours=hours, minutes=minutes)
     end_dt = start_dt + duration
     event = {
         "start": {"dateTime": start_dt.isoformat()},
@@ -68,16 +68,17 @@ def add_contests(service, calendar_id, verbose):
                 tds[0].string,
                 tds[2].a.span.string,
                 tds[3].string,
-                verbose
+                verbose,
             )
 
 
 def delete_next_contests(service, calendar_id, num_contests, verbose):
+    now = datetime.utcnow().isoformat() + 'Z' # Z indicates UTC time
     events_result = (
         service.events()
         .list(
             calendarId=calendar_id,
-            timeMin=datetime.datetime.now(TIMEZONE).isoformat(),
+            timeMin=now,
             maxResults=num_contests,
             singleEvents=True,
             orderBy="startTime",
@@ -108,7 +109,7 @@ def main(argv):
         except getopt.GetoptError:
             print("Usage: python3 cal.py [-a][-d][-v]")
             sys.exit(2)
-        verbose = ("-v", "") in opts 
+        verbose = ("-v", "") in opts
         if opts[0][0] == "-a":
             print("Adding contests ...")
             add_contests(service, calendar_id, verbose)
