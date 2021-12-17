@@ -37,6 +37,35 @@ def handle_auth():
     return creds
 
 
+def create_event(service, calendar_id, contest_name, start_datetime, contest_length):
+    start_dt = datetime.datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").astimezone(
+        datetime.timezone(datetime.timedelta(hours=1))
+    )
+    hours, minutes = list(map(int, contest_length.split(":")))
+    duration = datetime.timedelta(hours=hours, minutes=minutes)
+    end_dt = start_dt + duration
+    event = {
+        "start": {"dateTime": start_dt.isoformat()},
+        "end": {"dateTime": end_dt.isoformat()},
+        "summary": contest_name,
+    }
+    service.events().insert(calendarId=calendar_id, body=event).execute()
+
+def add_contests(service, calendar_id):
+    html = requests.get("https://codeforces.com/contests").text
+    soup = BeautifulSoup(html, "html.parser")
+    for tr in soup.table.find_all("tr"):
+        tds = tr.find_all("td")
+        if len(tds) > 2:
+            create_event(
+                service,
+                calendar_id,
+                tds[0].string,
+                tds[2].a.span.string,
+                tds[3].string,
+            )
+
+
 def main():
     creds = handle_auth()
 
@@ -47,24 +76,7 @@ def main():
             for x in service.calendarList().list().execute()["items"]
             if x["summary"] == "Contests"
         )["id"]
-        html = requests.get("https://codeforces.com/contests").text
-        soup = BeautifulSoup(html, "html.parser")
-        for tr in soup.table.find_all("tr"):
-            tds = tr.find_all("td")
-            if len(tds) > 2:
-                start_dt = datetime.datetime.strptime(
-                    tds[2].a.span.string, "%b/%d/%Y %H:%M"
-                ).astimezone(datetime.timezone(datetime.timedelta(hours=1)))
-                hours, minutes = list(map(int, tds[3].string.split(":")))
-                duration = datetime.timedelta(hours=hours, minutes=minutes)
-                end_dt = start_dt + duration
-                event = {
-                    "start": {"dateTime": start_dt.isoformat()},
-                    "end": {"dateTime": end_dt.isoformat()},
-                    "summary": tds[0].string,
-                }
-                service.events().insert(calendarId=calendar_id, body=event).execute()
-
+        add_contests(service, calendar_id)
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
     except Exception as e:
