@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import datetime
 import os.path
+import sys, getopt
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -73,14 +74,10 @@ def delete_next_contests(service, calendar_id, num_contests):
                                               orderBy='startTime').execute()
     events = events_result.get('items', [])
 
-    if not events:
-        print('No upcoming events found.')
-        return
-
     for event in events:
         service.events().delete(calendarId = calendar_id, eventId = event["id"]).execute()
 
-def main():
+def main(argv):
     creds = handle_auth()
 
     try:
@@ -90,8 +87,22 @@ def main():
             for x in service.calendarList().list().execute()["items"]
             if x["summary"] == "Contests"
         )["id"]
-        # add_contests(service, calendar_id)
-        # delete_next_contests(service, calendar_id, 10)
+        try:
+            opts, args = getopt.getopt(argv,"ad")
+        except getopt.GetoptError:
+            print('cal.py [-a][-d]')
+            sys.exit(2)
+
+        if len(opts) == 0:
+            print("Updating next 10 contests")
+            delete_next_contests(service, calendar_id, 10)
+            add_contests(service, calendar_id)
+        elif opts[0][0] == "-a":
+            print("Adding contests")
+            add_contests(service, calendar_id)
+        elif opts[0][0] == "-d":
+            print("Deleting next 10 contests")
+            delete_next_contests(service, calendar_id, 10)
 
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
@@ -100,4 +111,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
