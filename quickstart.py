@@ -9,8 +9,13 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from bs4 import BeautifulSoup
+
+import requests
+
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
 
 def handle_auth():
     creds = None
@@ -31,20 +36,34 @@ def handle_auth():
             token.write(creds.to_json())
     return creds
 
+
 def main():
     creds = handle_auth()
 
     try:
         service = build("calendar", "v3", credentials=creds)
-
-        mydt = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=1)))
-        event = {
-            "start": {"dateTime": mydt.isoformat()},
-            "end": {"dateTime": mydt.replace(hour=mydt.hour + 1).isoformat()},
-            "summary": "Hole"
-        }
-        calendar_id = next(x for x in service.calendarList().list().execute()["items"] if x["summary"] == "Contests")["id"]
-        service.events().insert(calendarId=calendar_id, body=event).execute()
+        calendar_id = next(
+            x
+            for x in service.calendarList().list().execute()["items"]
+            if x["summary"] == "Contests"
+        )["id"]
+        html = requests.get("https://codeforces.com/contests").text
+        soup = BeautifulSoup(html, "html.parser")
+        for tr in soup.table.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) > 2:
+                start_dt = datetime.datetime.strptime(
+                    tds[2].a.span.string, "%b/%d/%Y %H:%M"
+                ).astimezone(datetime.timezone(datetime.timedelta(hours=1)))
+                hours, minutes = list(map(int, tds[3].string.split(":")))
+                duration = datetime.timedelta(hours=hours, minutes=minutes)
+                end_dt = start_dt + duration
+                event = {
+                    "start": {"dateTime": start_dt.isoformat()},
+                    "end": {"dateTime": end_dt.isoformat()},
+                    "summary": tds[0].string,
+                }
+                service.events().insert(calendarId=calendar_id, body=event).execute()
 
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
