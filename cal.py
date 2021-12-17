@@ -39,7 +39,7 @@ def handle_auth():
     return creds
 
 
-def create_event(service, calendar_id, contest_name, start_datetime, contest_length):
+def create_event(service, calendar_id, contest_name, start_datetime, contest_length, verbose):
     start_dt = datetime.datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").astimezone(
         TIMEZONE
     )
@@ -52,9 +52,11 @@ def create_event(service, calendar_id, contest_name, start_datetime, contest_len
         "summary": contest_name,
     }
     service.events().insert(calendarId=calendar_id, body=event).execute()
+    if verbose:
+        print("Inserted: {}".format(contest_name.strip()))
 
 
-def add_contests(service, calendar_id):
+def add_contests(service, calendar_id, verbose):
     html = requests.get("https://codeforces.com/contests").text
     soup = BeautifulSoup(html, "html.parser")
     for tr in soup.table.find_all("tr"):
@@ -66,16 +68,29 @@ def add_contests(service, calendar_id):
                 tds[0].string,
                 tds[2].a.span.string,
                 tds[3].string,
+                verbose
             )
 
-def delete_next_contests(service, calendar_id, num_contests):
-    events_result = service.events().list(calendarId=calendar_id, timeMin=datetime.datetime.now(TIMEZONE).isoformat(),
-                                              maxResults=num_contests, singleEvents=True,
-                                              orderBy='startTime').execute()
-    events = events_result.get('items', [])
+
+def delete_next_contests(service, calendar_id, num_contests, verbose):
+    events_result = (
+        service.events()
+        .list(
+            calendarId=calendar_id,
+            timeMin=datetime.datetime.now(TIMEZONE).isoformat(),
+            maxResults=num_contests,
+            singleEvents=True,
+            orderBy="startTime",
+        )
+        .execute()
+    )
+    events = events_result.get("items", [])
 
     for event in events:
-        service.events().delete(calendarId = calendar_id, eventId = event["id"]).execute()
+        service.events().delete(calendarId=calendar_id, eventId=event["id"]).execute()
+        if verbose:
+            print("Deleted: {}".format(event["summary"].strip()))
+
 
 def main(argv):
     creds = handle_auth()
@@ -87,22 +102,23 @@ def main(argv):
             for x in service.calendarList().list().execute()["items"]
             if x["summary"] == "Contests"
         )["id"]
-        try:
-            opts, args = getopt.getopt(argv,"ad")
-        except getopt.GetoptError:
-            print('cal.py [-a][-d]')
-            sys.exit(2)
 
-        if len(opts) == 0:
-            print("Updating next 10 contests")
-            delete_next_contests(service, calendar_id, 10)
-            add_contests(service, calendar_id)
-        elif opts[0][0] == "-a":
-            print("Adding contests")
-            add_contests(service, calendar_id)
+        try:
+            opts, _ = getopt.getopt(argv, "adv")
+        except getopt.GetoptError:
+            print("Usage: python3 cal.py [-a][-d][-v]")
+            sys.exit(2)
+        verbose = ("-v", "") in opts 
+        if opts[0][0] == "-a":
+            print("Adding contests ...")
+            add_contests(service, calendar_id, verbose)
         elif opts[0][0] == "-d":
-            print("Deleting next 10 contests")
-            delete_next_contests(service, calendar_id, 10)
+            print("Deleting next 10 contests ...")
+            delete_next_contests(service, calendar_id, 10, verbose)
+        else:
+            print("Updating next 10 contests ...")
+            delete_next_contests(service, calendar_id, 10, verbose)
+            add_contests(service, calendar_id, verbose)
 
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
