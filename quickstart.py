@@ -15,6 +15,7 @@ import requests
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+TIMEZONE = datetime.timezone(datetime.timedelta(hours=1))
 
 
 def handle_auth():
@@ -39,7 +40,7 @@ def handle_auth():
 
 def create_event(service, calendar_id, contest_name, start_datetime, contest_length):
     start_dt = datetime.datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").astimezone(
-        datetime.timezone(datetime.timedelta(hours=1))
+        TIMEZONE
     )
     hours, minutes = list(map(int, contest_length.split(":")))
     duration = datetime.timedelta(hours=hours, minutes=minutes)
@@ -50,6 +51,7 @@ def create_event(service, calendar_id, contest_name, start_datetime, contest_len
         "summary": contest_name,
     }
     service.events().insert(calendarId=calendar_id, body=event).execute()
+
 
 def add_contests(service, calendar_id):
     html = requests.get("https://codeforces.com/contests").text
@@ -65,6 +67,18 @@ def add_contests(service, calendar_id):
                 tds[3].string,
             )
 
+def delete_next_contests(service, calendar_id, num_contests):
+    events_result = service.events().list(calendarId=calendar_id, timeMin=datetime.datetime.now(TIMEZONE).isoformat(),
+                                              maxResults=num_contests, singleEvents=True,
+                                              orderBy='startTime').execute()
+    events = events_result.get('items', [])
+
+    if not events:
+        print('No upcoming events found.')
+        return
+
+    for event in events:
+        service.events().delete(calendarId = calendar_id, eventId = event["id"]).execute()
 
 def main():
     creds = handle_auth()
@@ -76,7 +90,9 @@ def main():
             for x in service.calendarList().list().execute()["items"]
             if x["summary"] == "Contests"
         )["id"]
-        add_contests(service, calendar_id)
+        # add_contests(service, calendar_id)
+        # delete_next_contests(service, calendar_id, 10)
+
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
     except Exception as e:
