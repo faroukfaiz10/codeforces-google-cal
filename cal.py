@@ -108,10 +108,10 @@ def main(argv):
             print("Usage: python3 cal.py [-a][-d][-v]")
             sys.exit(2)
         verbose = ("-v", "") in opts
-        if opts[0][0] == "-a":
+        if opts and opts[0][0] == "-a":
             print("Adding contests ...")
             add_contests(service, calendar_id, verbose)
-        elif opts[0][0] == "-d":
+        elif opts and opts[0][0] == "-d":
             print("Deleting next 10 contests ...")
             delete_next_contests(service, calendar_id, 10, verbose)
         else:
