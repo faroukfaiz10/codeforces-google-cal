@@ -37,7 +37,7 @@ def handle_auth():
 
 
 def create_event(
-    service, calendar_id, contest_name, start, contest_length, verbose
+    service, calendar_id, contest_name, start, contest_length, quiet
 ):
     start_dt = datetime.strptime(start, "%b/%d/%Y %H:%M").replace(
         tzinfo=RUSSIA_TIMEZONE
@@ -54,11 +54,11 @@ def create_event(
         "summary": contest_name,
     }
     service.events().insert(calendarId=calendar_id, body=event).execute()
-    if verbose:
+    if not quiet:
         print("Inserted: {}".format(contest_name.strip()))
 
 
-def add_contests(service, calendar_id, verbose):
+def add_contests(service, calendar_id, quiet):
     """Add all codeforces upcoming contests as event calendars"""
     html = requests.get("https://codeforces.com/contests").text
     soup = BeautifulSoup(html, "html.parser")
@@ -73,11 +73,11 @@ def add_contests(service, calendar_id, verbose):
                 tds[0].string,
                 tds[2].a.span.string,
                 tds[3].string,
-                verbose,
+                quiet,
             )
 
 
-def delete_next_contests(service, calendar_id, num_contests, verbose):
+def delete_next_contests(service, calendar_id, num_contests, quiet):
     """Delete next `num_contests` contests in calendar with id `calendar_id`"""
     now = datetime.utcnow().isoformat() + "Z"  # Z for UTC time
     events_result = (
@@ -95,7 +95,7 @@ def delete_next_contests(service, calendar_id, num_contests, verbose):
 
     for event in events:
         service.events().delete(calendarId=calendar_id, eventId=event["id"]).execute()
-        if verbose:
+        if not quiet:
             print("Deleted: {}".format(event["summary"].strip()))
 
 
@@ -121,14 +121,15 @@ def main(argv):
         )["id"]
 
         try:
-            opts, _ = getopt.getopt(argv, "v")
+            opts, _ = getopt.getopt(argv, "q")
         except getopt.GetoptError:
-            print("Usage: python3 cal.py [-v]")
+            print("Usage: python3 cal.py [-q]")
             sys.exit(2)
-        verbose = ("-v", "") in opts
-        print("Updating next 10 contests ...")
-        delete_next_contests(service, calendar_id, 10, verbose)
-        add_contests(service, calendar_id, verbose)
+        quiet = ("-q", "") in opts
+        if not quiet:
+            print("Updating next 10 contests ...")
+        delete_next_contests(service, calendar_id, 10, quiet)
+        add_contests(service, calendar_id, quiet)
 
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
