@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
 
 import requests
 
-# If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 RUSSIA_TIMEZONE = timezone(timedelta(hours=3))
 
@@ -40,8 +39,12 @@ def handle_auth():
 def create_event(
     service, calendar_id, contest_name, start_datetime, contest_length, verbose
 ):
-    start_dt = datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").replace(tzinfo=RUSSIA_TIMEZONE)
-    hours, minutes = map(int, contest_length.split(":"))
+    start_dt = datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").replace(
+        tzinfo=RUSSIA_TIMEZONE
+    )
+    hours, minutes = list(map(int, contest_length.split(":")))[
+        :2
+    ]  # Time format can be hh:mm::ss (e.g. Kotlin Heroes)
     duration = timedelta(hours=hours, minutes=minutes)
     end_dt = start_dt + duration
     event = {
@@ -55,8 +58,11 @@ def create_event(
 
 
 def add_contests(service, calendar_id, verbose):
+    """Add all codeforces upcoming contests as event calendars"""
     html = requests.get("https://codeforces.com/contests").text
     soup = BeautifulSoup(html, "html.parser")
+    if soup.table == None:
+        raise Exception("Cannot add contests: Contests table not found")
     for tr in soup.table.find_all("tr"):
         tds = tr.find_all("td")
         if len(tds) > 2:
@@ -71,7 +77,8 @@ def add_contests(service, calendar_id, verbose):
 
 
 def delete_next_contests(service, calendar_id, num_contests, verbose):
-    now = datetime.utcnow().isoformat() + 'Z' # Z indicates UTC time
+    """Delete next `num_contests` contests in calendar with id `calendar_id`"""
+    now = datetime.utcnow().isoformat() + "Z"  # Z for UTC time
     events_result = (
         service.events()
         .list(
@@ -103,21 +110,14 @@ def main(argv):
         )["id"]
 
         try:
-            opts, _ = getopt.getopt(argv, "adv")
+            opts, _ = getopt.getopt(argv, "v")
         except getopt.GetoptError:
-            print("Usage: python3 cal.py [-a][-d][-v]")
+            print("Usage: python3 cal.py [-v]")
             sys.exit(2)
         verbose = ("-v", "") in opts
-        if opts and opts[0][0] == "-a":
-            print("Adding contests ...")
-            add_contests(service, calendar_id, verbose)
-        elif opts and opts[0][0] == "-d":
-            print("Deleting next 10 contests ...")
-            delete_next_contests(service, calendar_id, 10, verbose)
-        else:
-            print("Updating next 10 contests ...")
-            delete_next_contests(service, calendar_id, 10, verbose)
-            add_contests(service, calendar_id, verbose)
+        print("Updating next 10 contests ...")
+        delete_next_contests(service, calendar_id, 10, verbose)
+        add_contests(service, calendar_id, verbose)
 
     except HttpError as error:
         print("An HTTP error occurred: %s" % error)
