@@ -14,7 +14,7 @@ import requests
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 RUSSIA_TIMEZONE = timezone(timedelta(hours=3))
-
+CALENDAR_NAME = "Contests"
 
 def handle_auth():
     creds = None
@@ -37,11 +37,12 @@ def handle_auth():
 
 
 def create_event(
-    service, calendar_id, contest_name, start_datetime, contest_length, verbose
+    service, calendar_id, contest_name, start, contest_length, verbose
 ):
-    start_dt = datetime.strptime(start_datetime, "%b/%d/%Y %H:%M").replace(
+    start_dt = datetime.strptime(start, "%b/%d/%Y %H:%M").replace(
         tzinfo=RUSSIA_TIMEZONE
     )
+    #TODO: Get duration with format constructor
     hours, minutes = list(map(int, contest_length.split(":")))[
         :2
     ]  # Time format can be hh:mm::ss (e.g. Kotlin Heroes)
@@ -116,7 +117,7 @@ def main(argv):
         calendar_id = next(
             x
             for x in service.calendarList().list().execute()["items"]
-            if x["summary"] == "Contests"
+            if x["summary"] == CALENDAR_NAME
         )["id"]
 
         try:
