@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-import os.path
+import os
 import sys, getopt
 
 from google.auth.transport.requests import Request
@@ -99,7 +99,17 @@ def delete_next_contests(service, calendar_id, num_contests, verbose):
 
 
 def main(argv):
-    creds = handle_auth()
+    try:
+        creds = handle_auth()
+    except Exception as e:
+        print(f"Failed auth: ${e}")
+        try: 
+            os.remove("token.json")
+            print("Deleted token.json")
+            print("Token might have been expired. Rerun to get new token")
+        except OSError:
+            pass
+        sys.exit(1)
 
     try:
         service = build("calendar", "v3", credentials=creds)
